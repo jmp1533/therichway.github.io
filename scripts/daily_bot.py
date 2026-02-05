@@ -4,12 +4,12 @@ import pytz
 import yfinance as yf
 import google.generativeai as genai
 import requests
+import time
 
 # --- 환경변수 로드 ---
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-# 수동 실행 시 입력받은 주제 (없으면 빈 문자열)
 FOCUS_TOPIC = os.environ.get("FOCUS_TOPIC", "")
 
 # Gemini 설정
@@ -36,13 +36,42 @@ def generate_blog_post(market_data):
     if not GEMINI_API_KEY:
         return "Error: Gemini API Key is missing."
 
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # [핵심 변경] Pro 모델 삭제! 가볍고 빠른 Flash 모델만 사용
+    # 1.5-flash: 현재 주력 무료/고성능 모델
+    # 1.5-flash-8b: 더 가벼운 모델 (백업용)
+    models_to_try = [
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-8b',
+        'gemini-1.5-flash-latest'
+    ]
+
+    model = None
+    active_model_name = ""
+
+    # 모델 연결 테스트
+    for m_name in models_to_try:
+        try:
+            print(f"Testing model: {m_name}...")
+            test_model = genai.GenerativeModel(m_name)
+            # 헬스 체크 (토큰 소모 최소화)
+            test_model.generate_content("Hi")
+            model = test_model
+            active_model_name = m_name
+            print(f"✅ Success! Using model: {active_model_name}")
+            break
+        except Exception as e:
+            print(f"⚠️ Failed to use {m_name}: {e}")
+            time.sleep(1) # 1초 대기 후 재시도
+            continue
+
+    if not model:
+        return "Error: 모든 Flash 모델 연결에 실패했습니다. API 키를 확인해주세요."
+
     today_date = datetime.datetime.now(pytz.timezone('Asia/Seoul')).strftime('%Y-%m-%d')
 
-    # 기본 프롬프트
     base_instruction = "위 데이터를 바탕으로 오늘자 미국 증시 시황을 분석해줘."
 
-    # [NEW] 수동 주제가 있을 경우 프롬프트 변경
+    # 수동 주제가 있으면 반영
     if FOCUS_TOPIC:
         print(f"🎯 Focus Topic Detected: {FOCUS_TOPIC}")
         base_instruction = f"위 데이터도 참고하되, 특히 **'{FOCUS_TOPIC}'** 이슈를 중점적으로 심층 분석해줘. 제목도 이 주제와 관련지어 짓고."
@@ -61,17 +90,16 @@ def generate_blog_post(market_data):
     categories: [미국주식]
     published: false
     ---
-    - 글 구조: 서론(흥미 유발) -> 본론(지수 및 뉴스 분석) -> 결론(투자 인사이트)
-    - 스타일: 가독성 좋게, 전문적이지만 친절하게
+    - 글 구조: 서론(시장 분위기) -> 본론(지수/뉴스 분석) -> 결론(한줄 요약)
+    - 스타일: 가독성 좋고 위트 있게 (전문 용어는 쉽게 풀어서)
     """
 
     try:
         response = model.generate_content(prompt)
-        # 마크다운 코드 블록 기호 제거
+        # 마크다운 코드 블록 제거 및 정리
         text = response.text.replace("```markdown", "").replace("```", "")
         return text
     except Exception as e:
-        print(f"Gemini Error: {e}")
         return f"Error generating content: {e}"
 
 def save_post(content):
@@ -87,15 +115,15 @@ def save_post(content):
 
 def send_telegram_alert(filename):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        print("Telegram token missing. Skipping alert.")
         return
 
-    repo_name = os.environ.get("GITHUB_REPOSITORY", "jmp1533/therichway.github.io") # 깃허브 액션 환경변수 활용
+    repo_name = os.environ.get("GITHUB_REPOSITORY", "jmp1533/therichway.github.io")
     issue_title = f"approve-{filename}"
+    # 승인 링크 생성
     approve_url = f"https://github.com/{repo_name}/issues/new?title={issue_title}&body=Click+Submit+to+publish."
 
     message = (
-        f"🚨 **[포스팅 초안 생성 완료]**\n"
+        f"⚡ **[Flash 포스팅 생성 완료]**\n"
         f"주제: {FOCUS_TOPIC if FOCUS_TOPIC else '정기 시황'}\n"
         f"파일: `{filename}`\n\n"
         f"[👉 여기를 눌러 승인(발행)하기]({approve_url})"
@@ -119,4 +147,5 @@ if __name__ == "__main__":
         print(f"Saved: {saved_file}")
         send_telegram_alert(saved_file)
     else:
-        print(post)
+        print(f"❌ CRITICAL ERROR: {post}")
+        exit(1) # 강제 실패 처리
