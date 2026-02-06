@@ -41,10 +41,13 @@ jobs:
         if: github.event.action == 'publish_post'
         run: |
           latest_file=$(ls -r _posts/*.md | head -1)
+          
           if [ -z "$latest_file" ]; then
-            echo "변경할 포스팅 파일이 없습니다."
+            echo "❌ 변경할 포스팅 파일이 없습니다."
             exit 1
           fi
+          
+          echo "Target File: $latest_file"
           sed -i 's/published: false/published: true/g' "$latest_file"
 
       # [단계 3] 변경사항 반영 (Git Push)
