@@ -48,7 +48,7 @@ def generate_blog_post(market_data):
     if not GEMINI_API_KEY: return "Error: API Key missing."
 
     # [모델: 2.0 이상 우선 사용]
-    models = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']
+    models = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-3-flash-preview']
     model = None
 
     for m in models:
