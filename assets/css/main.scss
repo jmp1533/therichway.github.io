@@ -1,0 +1,19 @@
+@import "minimal-mistakes";
+
+/* --- [사용자 커스텀 스타일] --- */
+
+/* 1. 메인 화면 글 제목 크기 축소 */
+.archive__item-title {
+  font-size: 1.1rem !important; /* 기본보다 작게 조정 (원하는 대로 숫자 변경 가능) */
+  font-weight: 700;
+}
+
+/* 2. 글 목록 간격 조정 (너무 벌어지지 않게) */
+.archive__item-teaser {
+  margin-bottom: 0.5em;
+}
+
+/* 3. 모바일에서 사이드바 토글 버튼 잘 보이게 */
+.sidebar__toggle-btn {
+  font-size: 1rem;
+}
