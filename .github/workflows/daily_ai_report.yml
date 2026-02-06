@@ -10,6 +10,8 @@ on:
 jobs:
   run_automation:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -30,7 +32,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # [수정] 텔레그램에서 전달받은 주제를 파이썬으로 전달
           FOCUS_TOPIC: ${{ github.event.client_payload.focus_topic }}
         run: python scripts/generate_post.py
 
@@ -39,7 +40,7 @@ jobs:
       - name: Publish if Approved
         if: github.event.action == 'publish_post'
         run: |
-          latest_file=$(ls -t _posts/*.md | head -1)
+          latest_file=$(ls -r _posts/*.md | head -1)
           if [ -z "$latest_file" ]; then
             echo "변경할 포스팅 파일이 없습니다."
             exit 1

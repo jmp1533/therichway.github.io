@@ -127,7 +127,7 @@ def save_and_notify(content):
         repo = os.environ.get("GITHUB_REPOSITORY", "user/repo")
         url = f"https://github.com/{repo}/blob/main/{filename}"
         msg = f"📝 **[새로운 글 생성 완료]**\n주제: {FOCUS_TOPIC}\n\n내용 확인 후 '/publish' 하세요.\n[미리보기]({url})"
-        requests.post(f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_TOKEN}/sendMessage",
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
                       json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 if __name__ == "__main__":
