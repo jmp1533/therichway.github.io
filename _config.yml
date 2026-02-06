@@ -7,6 +7,8 @@ description: >- # 검색 결과에 노출될 블로그 설명
 
 url: "https://the-richway.github.io"
 baseurl: ""
+timezone: Asia/Seoul
+future: true # 미래 날짜 포스팅도 허용
 
 # --- 블로거 정보 ---
 author: "TheRichWay"
