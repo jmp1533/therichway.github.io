@@ -47,7 +47,7 @@ def get_market_data():
 def generate_blog_post(market_data):
     if not GEMINI_API_KEY: return "Error: API Key missing."
 
-    models = ['gemini-2.5-flash', 'Gemini 3 Flash', 'Gemini 2.5 Flash Lite']
+    models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-flash-latest']
     model = None
     for m in models:
         try:
