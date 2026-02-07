@@ -17,7 +17,9 @@ SEOUL_TZ = pytz.timezone('Asia/Seoul')
 DISCLAIMER_TEXT = """
 ***
 **[안내 및 면책 조항]**
-본 콘텐츠는 AI 모델을 활용하여 생성되었습니다. 투자의 책임은 본인에게 있으며, 제공된 데이터는 지연되거나 오류가 있을 수 있습니다.
+본 콘텐츠는 AI 모델을 활용하여 생성되었습니다.
+투자의 책임은 본인에게 있으며, 제공된 데이터는 지연되거나 오류가 있을 수 있습니다.
+내용에 오류가 있거나 저작권 문제가 발생할 경우, 즉시 삭제 또는 수정 조치하겠습니다.
 ***
 """
 
@@ -61,32 +63,34 @@ def generate_blog_post(market_data):
     date_str = now.strftime('%Y-%m-%d %H:%M:%S')
 
     # ---------------------------------------------------------
-    # [Step 1] 전문 분석가 모드 (표/데이터 위주)
+    # [Step 1] 전문 경제 분석가 모드 (Professional Analyst)
     # ---------------------------------------------------------
     prompt_analyst = f"""
-    [Identity]
-    You are a Wall Street Senior Analyst.
-    Your goal is to provide a sharp, data-driven analysis of the US market.
-    Do NOT mention your name or "TheRichWay" in the text.
+    [Identity & Persona]
+    You are a **Top-tier Economic Analyst** (like a Wall Street Strategist).
+    Your writing style is professional, data-driven, cynical yet insightful.
+    You prioritize logical reasoning over emotional expressions.
+    **Constraint:** Do NOT mention your name, "TheRichWay", or "Writer".
 
     [Input Data]
     - Market Data: {market_data}
     - Topic: {FOCUS_TOPIC}
 
-    [Content Requirements]
-    1. **Visuals (Markdown Tables)**:
-       - Since we cannot use images, you MUST use **Markdown Tables** extensively.
-       - Create a summary table of the indices at the beginning.
-       - If mentioning sectors, use a table to show winners vs. losers.
-    2. **Analysis**:
-       - Deep dive into WHY the market moved.
-       - Connect macroeconomics (rates, inflation) to stock movements.
-    3. **References (News Curation)**:
-       - Create a section named "## 📚 주요 참고 뉴스" at the end.
-       - **CRITICAL:** 80% of the news sources must be **Korean media** (e.g., Hankyung, Maeil, Yonhap). 20% can be major global sources (Bloomberg, WSJ).
-       - Provide 3-5 links.
+    [Visual & Readability Requirements - CRITICAL]
+    1. **Markdown Tables**: You MUST use tables to compare indices, sectors, or stocks. Do not list numbers in plain text.
+    2. **Mermaid Charts**: Include 1 simple Mermaid chart (e.g., `pie` or `graph LR`) to visualize logic or weight.
+    3. **Formatting**: Use bold text (`**text**`) for key figures and insights to enhance readability.
 
-    [Language]: Korean (Natural & Expert).
+    [Structure]
+    1. **Market Pulse**: Summary Table of indices + Brief comment.
+    2. **Deep Dive**: In-depth analysis of the topic.
+    3. **Strategy**: Actionable investment advice.
+    4. **References**:
+       - Section Title: "## 📚 주요 참고 뉴스"
+       - **Requirement:** 80% Korean News (Hankyung, Maeil, Yonhap), 20% Global (Bloomberg, WSJ).
+       - **Format:** `- [News Title](URL)` (Ensure links are valid and clickable).
+
+    [Language]: Korean (Natural, Professional, Expert).
     """
 
     draft = ""
@@ -97,7 +101,7 @@ def generate_blog_post(market_data):
         return f"Error in Step 1: {str(e)}"
 
     # ---------------------------------------------------------
-    # [Step 2] 편집장 모드 (브랜딩 제거 및 포맷팅)
+    # [Step 2] 편집장 모드 (검수 및 포맷팅)
     # ---------------------------------------------------------
     prompt_editor = f"""
     [Role] Chief Editor
@@ -105,12 +109,12 @@ def generate_blog_post(market_data):
     {draft}
 
     [Task] Final Polish.
-    1. **Branding Removal**: Ensure terms like "TheRichWay", "Report", "Writer" are REMOVED. The output should look like a pure analysis article.
-    2. **Formatting**: Ensure Markdown tables are correctly formatted for compatibility.
+    1. **Check Links**: Ensure all news references are in `[Title](URL)` format.
+    2. **Formatting**: Ensure Markdown Tables and Mermaid codes are syntactically correct.
     3. **Front Matter**:
     ---
     layout: single
-    title: "YOUR_OPTIMIZED_TITLE"
+    title: "YOUR_CATCHY_TITLE"
     date: {date_str}
     categories: ["경제·재테크", "미국증시"]
     published: false
@@ -124,7 +128,7 @@ def generate_blog_post(market_data):
         final_response = model.generate_content(prompt_editor).text
         content = final_response.strip()
 
-        # Markdown 코드 블록 제거
+        # Markdown 코드 블록 제거 (clean-up)
         if content.startswith("```markdown"): content = content.replace("```markdown", "", 1)
         if content.startswith("```"): content = content.replace("```", "", 1)
         if content.endswith("```"): content = content[:-3]
@@ -155,24 +159,23 @@ def save_and_notify(content):
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         repo = os.environ.get("GITHUB_REPOSITORY", "user/repo")
 
-        # [수정 완료] 텔레그램 URL 오류 수정
-        # 기존: f"[https://github.com/](...){repo}..." -> 마크다운 중복으로 깨짐
-        # 수정: 순수한 URL 문자열로 변경
+        # [HTML 전송 방식 적용]
+        # URL에 특수문자가 있어도 안전하게 전송하기 위해 HTML 태그 사용
         file_url = f"[https://github.com/](https://github.com/){repo}/blob/main/{filepath}"
 
-        # [수정 완료] 브랜딩 문구 제거 (TheRichWay Report 등 삭제)
         msg = (
-            f"📊 **[미국 증시 분석 완료]**\n"
-            f"주제: {FOCUS_TOPIC}\n"
-            f"특징: 데이터 표 포함, 국내 뉴스 큐레이션\n\n"
-            f"검토 후 발행: `/publish`\n"
-            f"[👉 리포트 미리보기]({file_url})"
+            f"<b>📊 [미국 증시 분석 리포트]</b>\n\n"
+            f"<b>주제:</b> {FOCUS_TOPIC}\n"
+            f"<b>내용:</b> 데이터 테이블, 뉴스 링크 포함\n\n"
+            f"검토 후 발행: <code>/publish</code>\n"
+            f"<a href='{file_url}'>👉 리포트 미리보기 (Click)</a>"
         )
+
         try:
-            # requests.post 사용 시 json 파라미터 활용 (안정성)
+            # parse_mode='HTML' 사용
             response = requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-                json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"}
+                f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_TOKEN}/sendMessage",
+                json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "HTML"}
             )
             if response.status_code == 200:
                 print("✅ 텔레그램 알림 전송 성공")
