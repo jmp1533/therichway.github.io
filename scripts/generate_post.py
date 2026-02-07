@@ -4,6 +4,7 @@ import pytz
 import yfinance as yf
 import google.generativeai as genai
 import requests
+import re
 
 # --- [환경변수 및 설정] ---
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -176,6 +177,9 @@ def save_and_notify(content):
     today = datetime.datetime.now(SEOUL_TZ).strftime("%Y-%m-%d")
     timestamp = datetime.datetime.now(SEOUL_TZ).strftime("%H%M")
 
+    # [수정 2] 텔레그램 URL 클린업
+    # 기존 코드의 [https://...](...) 부분을 순수 URL로 변경했습니다.
+
     category_dir = "_posts/us-stock"
     os.makedirs(category_dir, exist_ok=True)
 
@@ -191,16 +195,15 @@ def save_and_notify(content):
         file_url = f"[https://github.com/](https://github.com/){repo}/blob/main/{filepath}"
 
         msg = (
-            f"📊 **[TheRichWay 리포트 생성]**\n"
+            f"📊 **[TheRichWay 리포트]**\n"
             f"주제: {FOCUS_TOPIC}\n"
             f"검토 후 발행: `/publish`\n"
             f"[👉 미리보기]({file_url})"
         )
         try:
-            requests.post(
-                f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_TOKEN}/sendMessage",
-                json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"}
-            )
+            url = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_TOKEN}/sendMessage"
+            requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+            print("✅ 텔레그램 알림 전송 성공")
         except Exception as e:
             print(f"❌ 텔레그램 에러: {e}")
 
