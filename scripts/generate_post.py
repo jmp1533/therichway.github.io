@@ -47,69 +47,85 @@ def get_market_data():
 def generate_blog_post(market_data):
     if not GEMINI_API_KEY: return "Error: API Key missing."
 
-    # [모델: 2.0 이상 우선 사용]
     models = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-3-flash-preview']
     model = None
-
     for m in models:
         try:
             model = genai.GenerativeModel(m)
             model.generate_content("test", generation_config={"max_output_tokens": 1})
             break
         except: continue
-
     if not model: return "Error: No available models."
 
     now = datetime.datetime.now(SEOUL_TZ)
 
-    # [프롬프트 대수술: 가독성 및 UI/UX 고려]
+    # [프롬프트 2.0: 전문가 페르소나 및 콘텐츠 강화]
     prompt = f"""
-    [Role] Financial Data Analyst (Neutral, Professional, Concise)
-    [Data] {market_data}
-    [Topic] {FOCUS_TOPIC if FOCUS_TOPIC else 'Global Market Trends'}
+    [Role & Persona]
+    You are a professional economic analyst and content creator for 'TheRichWay', a blog specializing in investment and financial technology. Your tone is insightful, data-driven, and slightly provocative to capture reader interest, but always grounded in facts. You write for a sophisticated audience that appreciates deep analysis.
 
-    [Guidelines for UX/UI]
-    1. **NO Filler Words**: Do NOT use phrases like "TheRichWay", "Report", "Senior Analyst", "Here is the analysis". Just start with the content.
-    2. **Structure**: Use short paragraphs (2-3 lines max). Use <h3> for subtitles. Use Bullet points for key data.
-    3. **Visuals**: Where appropriate, insert a simple Markdown Table or Mermaid Chart code for trends.
-    4. **Tone**: Easy to understand for beginners, but professional data for experts.
-    5. **References**: Include 1-2 relevant news links if possible (e.g., "참고: [Bloomberg](https://www.bloomberg.com)").
+    [Context]
+    - Today's Date: {now.strftime('%Y-%m-%d')}
+    - Raw Market Data: {market_data}
+    - Core Topic: {FOCUS_TOPIC if FOCUS_TOPIC else 'U.S. Market Analysis'}
 
-    [Output Format - Front Matter must be exact]
+    [Content Generation Rules]
+    1.  **Title Generation**: Create a compelling, slightly sensational title based on the market analysis. The title must be unique and reflect the core message of the article. DO NOT use generic phrases.
+    2.  **Deep Analysis (2x-10x More Content)**:
+        *   Go beyond a simple summary. Provide a multi-faceted analysis covering:
+            *   **Macro-Economic Overview**: Connect market movements to broader economic indicators (e.g., inflation, employment data, Fed policy).
+            *   **Sector Spotlight**: Identify and analyze the best and worst-performing sectors.
+            *   **Key Market Movers**: Discuss specific stocks or events that significantly impacted the market.
+            *   **Investor Sentiment**: Analyze the VIX (fear index) and other sentiment indicators.
+            *   **Future Outlook & Strategy**: Offer actionable insights and potential strategies for investors.
+    3.  **News Integration**: Assume you have analyzed 10+ reputable financial news sources (e.g., Bloomberg, Reuters, WSJ). Synthesize their key insights into your analysis.
+    4.  **Rich Visuals**:
+        *   **Tables**: Use Markdown tables extensively to present data clearly.
+        *   **Charts**: Integrate at least one or two Mermaid.js charts (e.g., `pie`, `gantt`, `flowchart`) to visualize trends or relationships.
+    5.  **Structure & Formatting**:
+        *   Use `##` for main sections and `###` for sub-sections to create a rich, logical structure. This will automatically generate a useful "On this page" TOC.
+        *   Start the article with a bold, engaging introductory paragraph.
+
+    [Output Format - Adhere Strictly to this Front Matter]
     ---
     layout: single
-    title: "주요 키워드로 본 오늘의 증시: {FOCUS_TOPIC if FOCUS_TOPIC else '미국 증시 브리핑'}"
+    title: "[AI가 생성할 자극적인 제목]"
     date: {now.strftime('%Y-%m-%d %H:%M:%S')}
-    categories: ["경제·재테크", "미국증시"]
+    categories: ["미국증시"]
     published: false
     toc: true
     ---
 
-    (Write the blog content here in Korean. Start directly with the hook.)
+    (Start writing the article here in Korean. Begin with a strong hook.)
 
-    ## 1. 시장 핵심 요약
-    (Summary here)
+    ## 1. 거시 경제 브리핑: 시장의 숨은 동력
 
-    ## 2. 주요 지표 분석
-    (Analysis here)
+    ### 금리와 인플레이션
 
-    ## 3. 투자자 관전 포인트
-    (Conclusion here)
+    ## 2. 섹터별 심층 분석: 승자와 패자
 
-    ## 4. 주요 뉴스 및 참고 자료
-    - [뉴스 제목](링크)
+    ### 오늘의 주인공
+
+    ### 눈물의 섹터
+
+    ## 3. 시장의 핵심 동인(Key Movers)
+
+    ## 4. 투자 심리 및 VIX 분석
+
+    ## 5. 전망 및 투자 전략
+
+    ## 6. 주요 참고 뉴스
+    (List 3-5 most relevant news links from your analysis here. e.g., "- [기사 제목](링크) - 주요 내용 요약")
     """
 
     try:
         response = model.generate_content(prompt)
         content = response.text.strip()
 
-        # Markdown 코드 블록 제거 (Front Matter 보호)
         if content.startswith("```markdown"): content = content.replace("```markdown", "", 1)
         if content.startswith("```"): content = content.replace("```", "", 1)
         if content.endswith("```"): content = content[:-3]
 
-        # [자동 디스클레이머 부착]
         return content.strip() + DISCLAIMER_TEXT
 
     except Exception as e:
@@ -122,21 +138,17 @@ def save_and_notify(content):
 
     today = datetime.datetime.now(SEOUL_TZ).strftime("%Y-%m-%d")
     timestamp = datetime.datetime.now(SEOUL_TZ).strftime("%H%M")
-
-    # 카테고리별 폴더 구조 생성 (영문 경로 권장)
     category_path = "_posts/us-stock"
     os.makedirs(category_path, exist_ok=True)
-
     filename = f"{category_path}/{today}-market-{timestamp}.md"
 
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(content)
 
-    # 텔레그램 알림 전송 (디버깅 로그 추가)
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         repo = os.environ.get("GITHUB_REPOSITORY", "user/repo")
         url = f"https://github.com/{repo}/blob/main/{filename}"
-        msg = f"📝 **[새로운 글 생성 완료]**\n주제: {FOCUS_TOPIC}\n\n내용 확인 후 '/publish' 하세요.\n[미리보기]({url})"
+        msg = f"📝 **[새로운 글 생성 완료]**\n\n내용 확인 후 '/publish' 하세요.\n[미리보기]({url})"
 
         try:
             response = requests.post(
