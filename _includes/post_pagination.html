@@ -1,0 +1,14 @@
+{% if page.previous or page.next %}
+  <nav class="pagination">
+    {% if page.previous %}
+      <a href="{{ page.previous.url | relative_url }}" class="pagination--pager" title="{{ page.previous.title | markdownify | strip_html }}" style="font-size: 1rem; padding: 0.5em 1em;">이전글</a>
+    {% else %}
+      <a href="#" class="pagination--pager disabled" style="font-size: 1rem; padding: 0.5em 1em;">이전글</a>
+    {% endif %}
+    {% if page.next %}
+      <a href="{{ page.next.url | relative_url }}" class="pagination--pager" title="{{ page.next.title | markdownify | strip_html }}" style="font-size: 1rem; padding: 0.5em 1em;">다음글</a>
+    {% else %}
+      <a href="#" class="pagination--pager disabled" style="font-size: 1rem; padding: 0.5em 1em;">다음글</a>
+    {% endif %}
+  </nav>
+{% endif %}
