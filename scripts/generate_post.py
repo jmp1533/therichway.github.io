@@ -14,15 +14,10 @@ SEOUL_TZ = pytz.timezone('Asia/Seoul')
 
 # [디스클레이머: 작은 글씨로 하단에 부착될 문구]
 DISCLAIMER_TEXT = """
-<br>
-<hr>
-<p style="font-size: 0.8em; color: #999; line-height: 1.4;">
-<strong>[안내 및 면책 조항]</strong><br>
-본 콘텐츠는 인공지능(AI) 모델을 활용하여 시장 데이터를 기반으로 자동 생성되었습니다.<br>
-특정 종목에 대한 투자 권유가 아니며, 데이터의 지연이나 오류가 발생할 수 있습니다.<br>
-투자에 대한 모든 책임은 투자자 본인에게 있습니다.<br>
-내용에 오류가 있거나 저작권 문제가 발생할 경우, 즉시 삭제 또는 수정 조치하겠습니다.
-</p>
+***
+**[안내 및 면책 조항]**
+본 콘텐츠는 AI 모델을 활용하여 생성되었습니다. 투자의 책임은 본인에게 있으며, 제공된 데이터는 지연되거나 오류가 있을 수 있습니다.
+***
 """
 
 if GEMINI_API_KEY:
@@ -63,67 +58,107 @@ def generate_blog_post(market_data):
 
     now = datetime.datetime.now(SEOUL_TZ)
     date_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    # 이미지 파일명에 사용할 고유 타임스탬프
+    img_timestamp = now.strftime('%Y%m%d-%H%M%S')
 
     # ---------------------------------------------------------
-    # [Step 1] 전문 분석가 모드: 글 + 표 + 그림 동시 작성
+    # [Step 1] 전문 분석가 모드 (SVG 코드 생성 요청)
     # ---------------------------------------------------------
     prompt_analyst = f"""
     [Identity]
     You are a Wall Street Senior Analyst writing for 'TheRichWay'.
-    Your tone is professional, insightful, and slightly provocative.
 
     [Input Data]
     - Market Data: {market_data}
     - Topic: {FOCUS_TOPIC}
 
-    [Mandatory Requirements]
-    1. **Content**: Write a deep analysis of the US market trends.
-    2. **Visuals (MUST INCLUDE)**:
-       - **Markdown Table**: Summarize key indices or sector performance in a table.
-       - **Mermaid Chart**: Include at least one `pie` or `graph TD` chart to visualize the data or logic. (Wrap in ```mermaid code blocks)
-    3. **Structure**:
-       - Start with a market summary.
-       - Deep dive into the main topic.
-       - End with investment strategy.
-    4. **Language**: Korean (Expert level).
+    [Visual Requirements - IMPORTANT]
+    Generate a professional **SVG (Scalable Vector Graphics) XML code** for a chart that visualizes the current market data (e.g., a bar chart comparing index returns).
+    - **CRITICAL:** Wrap the entire SVG code block inside `<SVG_CHART>` and `</SVG_CHART>` tags so I can extract it programmatically.
+    - The SVG should be clean, modern, and have a clear title and legends.
+    - Do not use external image URLs. Generate the raw code.
+
+    [Structure Requirements]
+    1. **Title**: Catchy and professional.
+    2. **Body**:
+       - **Market Summary**: Place the `<SVG_CHART>...</SVG_CHART>` block here.
+       - **Deep Analysis**: Use Markdown Tables for data.
+       - **Strategy**: Clear actionable advice.
+    3. **References**:
+       - Create a section named "## 📚 주요 참고 뉴스 (References)"
+       - Provide 3-5 realistic URLs related to today's market news.
+
+    [Language]: Korean (Natural & Expert).
     """
 
+    draft = ""
     try:
-        # 1차 생성: 초안 작성 (데이터 + 시각화)
+        # 1차 생성: 분석 및 SVG 코드 포함된 초안
         draft = model.generate_content(prompt_analyst).text
     except Exception as e:
         return f"Error in Step 1: {str(e)}"
 
     # ---------------------------------------------------------
-    # [Step 2] 편집장 모드: 제목 최적화 + 검수 (Review)
+    # [중간 단계] SVG 코드 추출 및 로컬 이미지 파일 저장
+    # ---------------------------------------------------------
+    try:
+        # 정규표현식으로 <SVG_CHART> 태그 안의 내용 추출
+        svg_match = re.search(r'<SVG_CHART>(.*?)</SVG_CHART>', draft, re.DOTALL)
+
+        if svg_match:
+            svg_code = svg_match.group(1).strip()
+
+            # 이미지 저장 경로 설정 (assets/images/posts/)
+            img_dir = "assets/images/posts"
+            os.makedirs(img_dir, exist_ok=True) # 폴더 없으면 생성
+
+            img_filename = f"chart-{img_timestamp}.svg"
+            img_path = os.path.join(img_dir, img_filename)
+
+            # SVG 파일 저장
+            with open(img_path, 'w', encoding='utf-8') as f:
+                f.write(svg_code)
+                print(f"✅ 로컬 이미지 생성 완료: {img_path}")
+
+            # 초안의 SVG 코드 블록을 마크다운 이미지 링크로 교체
+            # Jekyll 웹 경로 기준: /assets/images/posts/...
+            web_img_path = f"/{img_dir}/{img_filename}"
+            draft = draft.replace(svg_match.group(0), f"\n![시장 분석 차트]({web_img_path})\n")
+        else:
+            print("⚠️ 경고: AI 응답에서 SVG 차트 코드를 찾지 못했습니다.")
+
+    except Exception as e:
+        print(f"❌ 이미지 저장 중 오류 발생: {str(e)}")
+        # 오류 나면 차트 없이 텍스트만 진행
+
+    # ---------------------------------------------------------
+    # [Step 2] 편집장 모드 (검수 및 Front Matter)
     # ---------------------------------------------------------
     prompt_editor = f"""
-    [Role] Chief Editor of a Financial Magazine
+    [Role] Chief Editor
     [Input Draft]
     {draft}
 
-    [Task] Polish the draft into a final post.
-    1. **Title**: Create a catchy, click-worthy title (e.g., "폭락? 기회? 지금 주목해야 할 시그널").
-    2. **Refinement**: Fix typos and ensure natural Korean flow.
-    3. **Front Matter**: Ensure STRICT Front Matter format:
+    [Task] Final Polish.
+    1. **Formatting**: Ensure the Markdown is clean for Tistory compatibility.
+    2. **Front Matter**:
     ---
     layout: single
-    title: "YOUR_CATCHY_TITLE"
+    title: "YOUR_OPTIMIZED_TITLE"
     date: {date_str}
     categories: ["경제·재테크", "미국증시"]
     published: false
     toc: true
     ---
 
-    [Output] Return ONLY the final Markdown content. Do not include introductory text like "Here is the revised version".
+    [Output] Return ONLY the final Markdown content.
     """
 
     try:
-        # 2차 생성: 최종 완성
         final_response = model.generate_content(prompt_editor).text
         content = final_response.strip()
 
-        # Markdown 코드 블록 제거 (Front Matter 보호)
+        # Markdown 코드 블록 제거
         if content.startswith("```markdown"): content = content.replace("```markdown", "", 1)
         if content.startswith("```"): content = content.replace("```", "", 1)
         if content.endswith("```"): content = content[:-3]
@@ -141,37 +176,31 @@ def save_and_notify(content):
     today = datetime.datetime.now(SEOUL_TZ).strftime("%Y-%m-%d")
     timestamp = datetime.datetime.now(SEOUL_TZ).strftime("%H%M")
 
-    # [수정] 파일 저장 경로: _posts/us-stock/
     category_dir = "_posts/us-stock"
     os.makedirs(category_dir, exist_ok=True)
 
     filename = f"{today}-market-{timestamp}.md"
     filepath = f"{category_dir}/{filename}"
 
-    # 로컬 저장
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
-    print(f"✅ 파일 생성 완료: {filepath}")
+    print(f"✅ 포스팅 파일 생성 완료: {filepath}")
 
-    # 텔레그램 알림
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         repo = os.environ.get("GITHUB_REPOSITORY", "user/repo")
-        # GitHub URL도 경로에 맞게 수정
-        file_url = f"https://github.com/{repo}/blob/main/{filepath}"
+        file_url = f"[https://github.com/](https://github.com/){repo}/blob/main/{filepath}"
 
         msg = (
-            f"📊 **[TheRichWay 미국증시 리포트]**\n"
+            f"📊 **[TheRichWay 리포트 생성]**\n"
             f"주제: {FOCUS_TOPIC}\n"
-            f"검토 후 발행하세요: `/publish`\n"
-            f"[👉 리포트 미리보기]({file_url})"
+            f"검토 후 발행: `/publish`\n"
+            f"[👉 미리보기]({file_url})"
         )
-
         try:
             requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_TOKEN}/sendMessage",
                 json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"}
             )
-            print("✅ 텔레그램 발송 성공")
         except Exception as e:
             print(f"❌ 텔레그램 에러: {e}")
 
