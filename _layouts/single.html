@@ -30,12 +30,11 @@ layout: default
             <a href="{{ page.url | absolute_url }}" class="u-url" itemprop="url">{{ page.title | markdownify | remove: "<p>" | remove: "</p>" }}</a>
           </h1>{% endif %}
 
-          <!-- [수정] 날짜/요일/시간 표시 강화 -->
+          <!-- [수정] 날짜 표시: 아이콘 제거, YYYY-MM-DD(요일) HH:MM 형식 -->
           {% if page.date %}
             <p class="page__date" style="font-size: 0.9em; color: #666; margin-top: -10px; margin-bottom: 20px;">
-              <i class="fas fa-fw fa-calendar-alt" aria-hidden="true"></i>
               <time datetime="{{ page.date | date_to_xmlschema }}">
-                {{ page.date | date: "%Y년 %m월 %d일" }}
+                {{ page.date | date: "%Y-%m-%d" }}
                 {% assign day = page.date | date: "%a" %}
                 {% case day %}
                   {% when 'Mon' %}(월)
@@ -58,7 +57,8 @@ layout: default
           <aside class="sidebar__right {% if page.toc_sticky %}sticky{% endif %}">
             <nav class="toc">
               <header><h4 class="nav__title"><i class="fas fa-{{ page.toc_icon | default: 'file-alt' }}"></i> {{ page.toc_label | default: 'On this page' }}</h4></header>
-              {% include toc.html sanitize=true html=content h_min=1 h_max=6 class="toc__menu" %}
+              <!-- [수정] h_max=2로 설정하여 큰 제목(h2)만 목차에 표시 -->
+              {% include toc.html sanitize=true html=content h_min=2 h_max=2 class="toc__menu" %}
             </nav>
           </aside>
         {% endif %}
@@ -66,7 +66,6 @@ layout: default
         {% if page.link %}<div><a href="{{ page.link }}" class="btn btn--primary">{{ site.data.ui-text[site.locale].ext_link_label | default: "Direct Link" }}</a></div>{% endif %}
       </section>
 
-      <!-- [수정] 하단 메타 정보(Categories, Updated) 및 페이지네이션(Prev/Next) 제거 -->
       <footer class="page__meta">
         {% if page.share %}{% include social-share.html %}{% endif %}
       </footer>
@@ -74,17 +73,23 @@ layout: default
       {% if jekyll.environment == 'production' and site.comments.provider and page.comments %}
         {% include comments.html %}
       {% endif %}
-    </article>
+    </div>
 
-    {% comment %}<!-- only show related posts if `related: true` -->{% endcomment %}
-    {% if page.related == true %}
-      <div class="page__related">
-        <h2 class="page__related-title">{{ site.data.ui-text[site.locale].related_label | default: "You May Also Enjoy" }}</h2>
-        <div class="grid__wrapper">
-          {% for post in site.related_posts limit:4 %}
-            {% include archive-single.html type="grid" %}
-          {% endfor %}
-        </div>
+    <!-- [수정] 이전글/다음글 버튼 추가 (우측 정렬 스타일 적용) -->
+    <div class="page__related" style="text-align: right;">
+      {% include post_pagination.html %}
+    </div>
+  </article>
+
+  {% comment %}<!-- only show related posts if `related: true` -->{% endcomment %}
+  {% if page.related == true %}
+    <div class="page__related">
+      <h2 class="page__related-title">{{ site.data.ui-text[site.locale].related_label | default: "You May Also Enjoy" }}</h2>
+      <div class="grid__wrapper">
+        {% for post in site.related_posts limit:4 %}
+          {% include archive-single.html type="grid" %}
+        {% endfor %}
       </div>
-    {% endif %}
+    </div>
+  {% endif %}
 </div>

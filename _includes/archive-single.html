@@ -25,10 +25,9 @@
       {% endif %}
     </h2>
 
-    <!-- [수정] 목록 화면에서도 날짜 표시 추가 -->
+    <!-- [수정] 날짜 표시: 아이콘 제거, YYYY-MM-DD(요일) HH:MM 형식 -->
     {% if post.date %}
       <p class="page__meta" style="margin-top: 5px; font-size: 0.85em; color: #888;">
-        <i class="far fa-calendar-alt" aria-hidden="true"></i>
         {{ post.date | date: "%Y-%m-%d" }}
         {% assign day = post.date | date: "%a" %}
         {% case day %}
@@ -40,10 +39,10 @@
           {% when 'Sat' %}(토)
           {% when 'Sun' %}(일)
         {% endcase %}
+        {{ post.date | date: "%H:%M" }}
       </p>
     {% endif %}
 
-    {% include page__meta.html type=include.type %}
-    {% if post.excerpt %}<p class="archive__item-excerpt" itemprop="description">{{ post.excerpt | markdownify | strip_html | truncate: 160 }}</p>{% endif %}
+    <!-- [수정] 요약글(excerpt) 제거 -->
   </article>
 </div>
