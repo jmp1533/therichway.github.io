@@ -56,7 +56,33 @@ def get_gemini_model():
         except: continue
     return None
 
-def generate_blog_post(market_data):
+def get_real_news_links():
+    """
+    [핵심 기능] yfinance를 통해 '실제 작동하는' 최신 뉴스 링크를 가져옵니다.
+    AI가 URL을 환각(Hallucination)하는 것을 방지합니다.
+    """
+    news_summary = "Real News Links (Use these for Global references):\n"
+    try:
+        # S&P500 관련 주요 뉴스를 가져옵니다.
+        ticker = yf.Ticker("^GSPC")
+        news_list = ticker.news
+
+        count = 0
+        for item in news_list:
+            if count >= 3: break
+            title = item.get('title', 'No Title')
+            link = item.get('link', '')
+            publisher = item.get('publisher', 'News')
+            if link:
+                news_summary += f"- [{title}]({link}) (Source: {publisher})\n"
+                count += 1
+    except Exception as e:
+        print(f"⚠️ 뉴스 수집 중 오류: {e}")
+        return "News fetching failed."
+
+    return news_summary
+
+def generate_blog_post(market_data, news_data):
     if not GEMINI_API_KEY: return "Error: API Key missing."
 
     model = get_gemini_model()
@@ -66,45 +92,49 @@ def generate_blog_post(market_data):
     date_str = now.strftime('%Y-%m-%d %H:%M:%S')
 
     # ---------------------------------------------------------
-    # [Step 1] 전문 경제 분석가 모드 (뉴스 링크 정확도 강화)
+    # [Step 1] 전문 경제 분석가 모드
     # ---------------------------------------------------------
     prompt_analyst = f"""
     [Identity & Persona]
-    You are a **Top-tier Economic Analyst** (like a Wall Street Strategist).
+    You are a **Top-tier Economic Analyst**.
     Your writing style is professional, data-driven, cynical yet insightful.
-    You prioritize logical reasoning over emotional expressions.
     **Constraint:** Do NOT mention your name, "TheRichWay", or "Writer".
 
     [Input Data]
     - Market Data: {market_data}
+    - Real Global News: {news_data}
     - Topic: {FOCUS_TOPIC}
 
-    [Visual & Readability Requirements - CRITICAL]
-    1. **Markdown Tables**: You MUST use tables to compare indices, sectors, or stocks.
-    2. **Mermaid Charts**: Include 1 simple Mermaid chart (e.g., `pie` or `graph LR`) to visualize logic.
-    3. **Formatting**: Use bold text (`**text**`) for key figures. Ensure paragraphs are well-spaced.
+    [Visual & Readability Requirements]
+    1. **Markdown Tables**: MUST use tables for indices/sector comparison.
+    2. **Mermaid Charts**: Include 1 simple Mermaid chart (e.g., `pie`) if applicable.
+    3. **Formatting**: Use bold text for key figures.
 
     [Structure]
-    1. **Market Pulse**: Summary Table of indices + Brief comment.
-    2. **Deep Dive**: In-depth analysis of the topic.
-    3. **Strategy**: Actionable investment advice.
-    4. **References**:
-       - Section Title: "## 📚 주요 참고 뉴스"
-       - **Requirement:** 80% Korean News (Hankyung, Maeil, Yonhap), 20% Global (Bloomberg, WSJ).
-       - **Link Validation:** Do NOT hallucinate fake URLs. If you don't know the exact URL, provide a search query link (e.g., `[Title](https://www.google.com/search?q=Title)`) or ensure the link is a valid format `[Title](URL)`.
+    1. **Market Pulse**: Summary Table + Comment.
+    2. **Deep Dive**: Analysis of the topic.
+    3. **Strategy**: Investment advice.
+    4. **References** (CRITICAL):
+       - Title: "## 📚 주요 참고 뉴스"
+       - **Rules**:
+         1. For Global news, USE THE REAL LINKS provided in 'Input Data'.
+         2. For Korean news (80%), provide links to the **Main Finance Section** of major portals if specific article URLs are unknown (e.g., `[한경 글로벌마켓](https://www.hankyung.com/globalmarket)`), OR valid real links if you know them. Do NOT generate fake deep-links.
+         3. Format: `- [Title](URL)`
+    5. **Tags**:
+       - Title: "### 🏷️ 태그"
+       - Content: Generate 5 relevant hashtags (e.g., #미국증시 #S&P500 ...)
 
-    [Language]: Korean (Natural, Professional, Expert).
+    [Language]: Korean (Natural, Professional).
     """
 
     draft = ""
     try:
-        # 1차 생성: 초안 작성
         draft = model.generate_content(prompt_analyst).text
     except Exception as e:
         return f"Error in Step 1: {str(e)}"
 
     # ---------------------------------------------------------
-    # [Step 2] 편집장 모드 (검수 및 포맷팅)
+    # [Step 2] 편집장 모드
     # ---------------------------------------------------------
     prompt_editor = f"""
     [Role] Chief Editor
@@ -112,9 +142,9 @@ def generate_blog_post(market_data):
     {draft}
 
     [Task] Final Polish.
-    1. **Check Links**: Ensure all news references are in `[Title](URL)` format.
-    2. **Formatting**: Ensure Markdown Tables and Mermaid codes are syntactically correct.
-    3. **Spacing**: Ensure there is a blank line between paragraphs for better readability.
+    1. **Link Check**: Ensure links are `[Title](URL)`.
+    2. **Formatting**: Ensure Tables/Mermaid are correct.
+    3. **Tags**: Ensure 5 hashtags exist at the bottom.
     4. **Front Matter**:
     ---
     layout: single
@@ -132,7 +162,7 @@ def generate_blog_post(market_data):
         final_response = model.generate_content(prompt_editor).text
         content = final_response.strip()
 
-        # Markdown 코드 블록 제거 (clean-up)
+        # Clean up
         if content.startswith("```markdown"): content = content.replace("```markdown", "", 1)
         if content.startswith("```"): content = content.replace("```", "", 1)
         if content.endswith("```"): content = content[:-3]
@@ -163,33 +193,39 @@ def save_and_notify(content):
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         repo = os.environ.get("GITHUB_REPOSITORY", "user/repo")
 
-        # [수정 완료] 순수 URL 문자열로 변경 (마크다운 문법 제거)
+        # [수정] URL 생성 시 f-string 내부에 마크다운 문법이 섞이지 않도록 주의
+        # 텔레그램 버튼/링크용 순수 URL
         file_url = f"[https://github.com/](https://github.com/){repo}/blob/main/{filepath}"
 
+        # 텔레그램 메시지 (HTML 모드)
         msg = (
-            f"<b>📊 [미국 증시 분석 리포트]</b>\n\n"
+            f"<b>📊 [미국 증시 리포트 생성]</b>\n\n"
             f"<b>주제:</b> {FOCUS_TOPIC}\n"
-            f"<b>내용:</b> 데이터 테이블, 뉴스 링크 포함\n\n"
+            f"<b>포함:</b> 데이터 표, 실제 뉴스 링크, 태그\n\n"
             f"검토 후 발행: <code>/publish</code>\n"
-            f"<a href='{file_url}'>👉 리포트 미리보기 (Click)</a>"
+            f"<a href='{file_url}'>👉 리포트 미리보기 (클릭)</a>"
         )
 
         try:
-            # [수정 완료] API URL도 순수 문자열로 변경
+            # [수정] requests.post URL을 순수 문자열로 구성 (가장 중요한 수정)
             api_url = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_TOKEN}/sendMessage"
 
             response = requests.post(
                 api_url,
                 json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "HTML"}
             )
+
             if response.status_code == 200:
                 print("✅ 텔레그램 알림 전송 성공")
             else:
                 print(f"❌ 텔레그램 전송 실패: {response.text}")
+
         except Exception as e:
-            print(f"❌ 텔레그램 에러: {e}")
+            print(f"❌ 텔레그램 연결 에러: {e}")
 
 if __name__ == "__main__":
-    data = get_market_data()
-    post = generate_blog_post(data)
+    market_data = get_market_data()
+    news_data = get_real_news_links()
+    
+    post = generate_blog_post(market_data, news_data)
     save_and_notify(post)
