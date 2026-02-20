@@ -74,7 +74,7 @@ def generate_blog_post(market_data):
         analysis_target = "최근 마감 시장 분석"
 
     # ---------------------------------------------------------
-    # [Step 1] 프롬프트 고도화 (다중 소스 분석 + 분량 확대)
+    # [Step 1] 프롬프트 고도화 (통합 분석 + 표 중심)
     # ---------------------------------------------------------
     prompt_analyst = f"""
     [Identity & Persona]
@@ -118,16 +118,17 @@ def generate_blog_post(market_data):
        - The post must be **extremely detailed**, aiming for **4,000 to 5,000 characters** (excluding spaces).
        - Do not just summarize; provide deep context, historical comparisons, and future implications.
        - Each section should be substantial. For example, when discussing a sector, explain *why* it moved, which specific companies led the move, and what analysts are saying.
-    2. **Multi-perspective Analysis**:
-       - Do not just list news. Synthesize the information.
-       - For a key issue, you might write something like: "While US media like The Wall Street Journal focused on the Fed's inflation concerns, Korean outlets such as 매일경제 highlighted the impact on the won-dollar exchange rate for exporters."
-       - Show that you have considered views from both US and Korean perspectives.
+    2. **Integrated Analysis (No Country Split)**:
+       - **DO NOT** separate the analysis into "US View" and "Korean View".
+       - Instead, synthesize all perspectives into a single, coherent narrative.
+       - Act as a true analyst: Digest all information and present your own expert judgment and summary.
+       - Use phrases like "Global markets are reacting to...", "Analysts worldwide agree that...", "While some concerns remain about inflation, the overall sentiment is..."
     3. **Structure & Headings**:
        - Use engaging Korean subheadings. DO NOT use "Market Pulse", "Deep Dive", etc.
-       - Create a logical flow: Introduction -> Broad Market Overview -> Deep Dive into 3-4 Key Themes (with multi-source analysis) -> Outlook & Strategy.
+       - Create a logical flow: Introduction -> Broad Market Overview -> Deep Dive into 3-4 Key Themes (Integrated Analysis) -> Outlook & Strategy.
     4. **Visuals**:
-       - Include a Markdown Table for key data.
-       - Include one Mermaid chart to illustrate a key concept or trend.
+       - **MUST use Markdown Tables** for data comparison and key metrics.
+       - **DO NOT use Mermaid charts (graph TD, etc.).** Replace any potential chart with a well-structured table.
     5. **References (CRITICAL)**:
        - Title: "## 📚 주요 참고 뉴스"
        - **Generate a list of 5-7 key news articles** that you theoretically used for your analysis.
@@ -157,8 +158,8 @@ def generate_blog_post(market_data):
     [Task] Final Polish.
     1. **Length Check**: Ensure the content is substantial (aiming for 4000-5000 chars). If it feels short, expand on the analysis.
     2. **Link Check**: Ensure ALL links are plausible and direct to the correct domain.
-    3. **Formatting**: Ensure Tables/Mermaid are correct.
-    4. **Tone Check**: Ensure it sounds like a professional economic blog.
+    3. **Formatting**: Ensure Tables are correct. **REMOVE any Mermaid charts if present.**
+    4. **Tone Check**: Ensure it sounds like a professional economic blog with integrated analysis.
     5. **Header Check**: Ensure NO generic headers like "Market Pulse" exist.
     6. **Front Matter**:
     ---
