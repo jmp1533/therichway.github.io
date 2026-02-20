@@ -2,10 +2,11 @@ name: AI Blog Daily Report
 
 on:
   schedule:
-    - cron: '0 22 * * *'  # 한국 시간 오전 7시 자동 실행
+    # 한국 시간 기준 월~토 오전 8시 (UTC 23시)
+    - cron: '0 23 * * 0-5'
   repository_dispatch:
-    types: [generate_post, publish_post]  # [수정] 두 가지 신호를 모두 받도록 설정
-  workflow_dispatch:      # 수동 실행 허용
+    types: [generate_post, publish_post]
+  workflow_dispatch:
 
 jobs:
   run_automation:
@@ -22,10 +23,20 @@ jobs:
           python-version: '3.11'
 
       - name: Install Deps
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # [랜덤 지연] 스케줄 실행일 때만 0~30분(1800초) 랜덤 대기
+      # 8시(UTC 23시)에 시작해서 최대 8시 30분까지 분산 실행됨
+      - name: Random Delay
+        if: github.event_name == 'schedule'
+        run: |
+          DELAY=$((RANDOM % 1801)) # 0초부터 1800초(30분)까지
+          echo "Sleeping for $DELAY seconds..."
+          sleep $DELAY
 
       # [단계 1] 포스팅 생성 로직
-      # 스케줄 실행이거나, 텔레그램에서 'generate_post' 신호가 왔을 때 실행
       - name: Create Post & Notify
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.action == 'generate_post'
         env:
@@ -35,8 +46,7 @@ jobs:
           FOCUS_TOPIC: ${{ github.event.client_payload.focus_topic }}
         run: python scripts/generate_post.py
 
-      # [단계 2] 발행 승인 로직
-      # 텔레그램에서 'publish_post' 신호가 왔을 때만 실행
+      # [단계 2] 발행 승인 로직 (필요 시 유지, 자동 발행으로 변경했으므로 사실상 불필요할 수 있음)
       - name: Publish if Approved
         if: github.event.action == 'publish_post'
         run: |

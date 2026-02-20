@@ -56,33 +56,7 @@ def get_gemini_model():
         except: continue
     return None
 
-def get_real_news_links():
-    """
-    [핵심 기능] yfinance를 통해 '실제 작동하는' 최신 뉴스 링크를 가져옵니다.
-    AI가 URL을 환각(Hallucination)하는 것을 방지합니다.
-    """
-    news_summary = "Real News Links (Use these for Global references):\n"
-    try:
-        # S&P500 관련 주요 뉴스를 가져옵니다.
-        ticker = yf.Ticker("^GSPC")
-        news_list = ticker.news
-
-        count = 0
-        for item in news_list:
-            if count >= 5: break # 뉴스 개수 약간 늘림
-            title = item.get('title', 'No Title')
-            link = item.get('link', '')
-            publisher = item.get('publisher', 'News')
-            if link:
-                news_summary += f"- [{title}]({link}) (Source: {publisher})\n"
-                count += 1
-    except Exception as e:
-        print(f"⚠️ 뉴스 수집 중 오류: {e}")
-        return "News fetching failed."
-
-    return news_summary
-
-def generate_blog_post(market_data, news_data):
+def generate_blog_post(market_data):
     if not GEMINI_API_KEY: return "Error: API Key missing."
 
     model = get_gemini_model()
@@ -92,53 +66,78 @@ def generate_blog_post(market_data, news_data):
     date_str = now.strftime('%Y-%m-%d %H:%M:%S')
     weekday = now.weekday() # 0:월, 1:화, ... 6:일
 
-    # [요일별 분석 기준 설정]
-    if weekday == 0: # 월요일
+    if weekday == 0:
         analysis_target = "지난 주말(토/일) 이슈 및 금요일 마감 시황 분석"
-    elif 1 <= weekday <= 4: # 화~금요일
+    elif 1 <= weekday <= 4:
         analysis_target = "전일(어제) 시장 및 밤사이 미국 증시 분석"
-    else: # 토/일요일
+    else:
         analysis_target = "최근 마감 시장 분석"
 
     # ---------------------------------------------------------
-    # [Step 1] 경제 블로거 모드
+    # [Step 1] 프롬프트 고도화 (다중 소스 분석 + 분량 확대)
     # ---------------------------------------------------------
     prompt_analyst = f"""
     [Identity & Persona]
-    You are a **Professional Economic Blogger**.
-    Your writing style is **insightful, logical, yet accessible** to general investors.
-    You analyze market trends deeply but explain them simply.
+    You are a **World-class Global Economic Analyst and Blogger**. You have a deep understanding of financial markets and the ability to synthesize information from a wide array of sources. Your writing is insightful, balanced, and provides a multi-perspective view.
 
-    [Current Context]
+    [Task]
+    Write a **very comprehensive and in-depth** blog post on "{FOCUS_TOPIC}". Your analysis must be based on a synthesis of information from the following premier news sources. You should demonstrate your expertise by cross-referencing different viewpoints and data points from them.
+
+    [News Sources for Analysis]
+    **US Sources (10):**
+    - The Wall Street Journal
+    - Bloomberg
+    - Reuters
+    - CNBC
+    - The New York Times
+    - The Financial Times
+    - Associated Press (AP)
+    - Fox Business
+    - MarketWatch
+    - Yahoo Finance
+
+    **Korean Sources (10):**
+    - 한국경제 (Korea Economic Daily)
+    - 매일경제 (Maeil Business Newspaper)
+    - 조선일보 (Chosun Ilbo)
+    - 중앙일보 (JoongAng Ilbo)
+    - 동아일보 (Donga Ilbo)
+    - 연합뉴스 (Yonhap News)
+    - YTN
+    - SBS Biz
+    - 머니투데이 (Money Today)
+    - 네이버 증권 (Naver Finance)
+
+    [Context]
     - Today: {date_str} (Korea Time)
     - **Analysis Target**: {analysis_target}
-    - Topic: {FOCUS_TOPIC}
+    - Input Market Data: {market_data}
 
-    [Input Data]
-    - Market Data: {market_data}
-    - Real Global News: {news_data}
-
-    [Visual & Readability Requirements]
-    1. **Markdown Tables**: MUST use tables for indices/sector comparison.
-    2. **Mermaid Charts**: Include 1 simple Mermaid chart (e.g., `pie` or `graph LR`) to visualize trends.
-    3. **Formatting**: Use bold text for key figures and clear headings.
-
-    [Structure]
-    1. **Market Pulse**: Summary Table + Key Takeaways from {analysis_target}.
-    2. **Deep Dive**: Detailed analysis of the topic. Why did the market move?
-    3. **Investment Strategy**: Practical advice for investors based on the analysis.
-    4. **References** (CRITICAL):
+    [Requirements]
+    1. **Length & Depth (CRITICAL)**:
+       - The post must be **extremely detailed**, aiming for **4,000 to 5,000 characters** (excluding spaces).
+       - Do not just summarize; provide deep context, historical comparisons, and future implications.
+       - Each section should be substantial. For example, when discussing a sector, explain *why* it moved, which specific companies led the move, and what analysts are saying.
+    2. **Multi-perspective Analysis**:
+       - Do not just list news. Synthesize the information.
+       - For a key issue, you might write something like: "While US media like The Wall Street Journal focused on the Fed's inflation concerns, Korean outlets such as 매일경제 highlighted the impact on the won-dollar exchange rate for exporters."
+       - Show that you have considered views from both US and Korean perspectives.
+    3. **Structure & Headings**:
+       - Use engaging Korean subheadings. DO NOT use "Market Pulse", "Deep Dive", etc.
+       - Create a logical flow: Introduction -> Broad Market Overview -> Deep Dive into 3-4 Key Themes (with multi-source analysis) -> Outlook & Strategy.
+    4. **Visuals**:
+       - Include a Markdown Table for key data.
+       - Include one Mermaid chart to illustrate a key concept or trend.
+    5. **References (CRITICAL)**:
        - Title: "## 📚 주요 참고 뉴스"
-       - **Rules**:
-         1. **MUST use specific article URLs** provided in 'Input Data'.
-         2. **DO NOT** use generic main page URLs (e.g., naver.com, yahoo.com).
-         3. If you cite a news, it must be a direct link to the article.
-         4. Format: `- [Title](URL)`
-    5. **Tags**:
+       - **Generate a list of 5-7 key news articles** that you theoretically used for your analysis.
+       - **The URLs must be plausible and point to the correct news domain.** For example, a Wall Street Journal link should start with `https://www.wsj.com/`.
+       - **This is a test of your ability to generate realistic, relevant links based on the day's news.** Do not invent fake news, but find plausible real news headlines and construct URLs.
+    6. **Tags**:
        - Title: "### 🏷️ 태그"
-       - Content: Generate 5 relevant hashtags (e.g., #미국증시 #S&P500 ...)
+       - Generate 5 relevant hashtags.
 
-    [Language]: Korean (Natural, Professional Blog Tone).
+    [Language]: Korean (Professional, High-quality, Analytical).
     """
 
     draft = ""
@@ -156,16 +155,18 @@ def generate_blog_post(market_data, news_data):
     {draft}
 
     [Task] Final Polish.
-    1. **Link Check**: Ensure ALL links are direct article links, NOT homepage links.
-    2. **Formatting**: Ensure Tables/Mermaid are correct.
-    3. **Tone Check**: Ensure it sounds like a professional economic blog.
-    4. **Front Matter**:
+    1. **Length Check**: Ensure the content is substantial (aiming for 4000-5000 chars). If it feels short, expand on the analysis.
+    2. **Link Check**: Ensure ALL links are plausible and direct to the correct domain.
+    3. **Formatting**: Ensure Tables/Mermaid are correct.
+    4. **Tone Check**: Ensure it sounds like a professional economic blog.
+    5. **Header Check**: Ensure NO generic headers like "Market Pulse" exist.
+    6. **Front Matter**:
     ---
     layout: single
     title: "YOUR_CATCHY_TITLE_BASED_ON_CONTENT"
     date: {date_str}
     categories: ["경제·재테크", "미국증시"]
-    published: false
+    published: true
     toc: true
     ---
 
@@ -176,7 +177,6 @@ def generate_blog_post(market_data, news_data):
         final_response = model.generate_content(prompt_editor).text
         content = final_response.strip()
 
-        # Clean up
         if content.startswith("```markdown"): content = content.replace("```markdown", "", 1)
         if content.startswith("```"): content = content.replace("```", "", 1)
         if content.endswith("```"): content = content[:-3]
@@ -205,11 +205,9 @@ def save_and_notify(content):
     print(f"✅ 포스팅 파일 생성 완료: {filepath}")
 
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
-        # 제목 추출
         title_match = re.search(r'title:\s*"(.*?)"', content)
         post_title = title_match.group(1) if title_match else "제목 없음"
 
-        # 텔레그램 메시지 구성
         msg = (
             f"[미국 증시 리포트 생성]\n"
             f"{post_title}\n\n"
@@ -217,25 +215,19 @@ def save_and_notify(content):
         )
 
         try:
-            # URL 수정: 마크다운 문법 제거하고 올바른 URL 형식으로 변경
             api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-
             response = requests.post(
                 api_url,
                 json={"chat_id": TELEGRAM_CHAT_ID, "text": msg}
             )
-
             if response.status_code == 200:
                 print("✅ 텔레그램 알림 전송 성공")
             else:
                 print(f"❌ 텔레그램 전송 실패: {response.text}")
-
         except Exception as e:
             print(f"❌ 텔레그램 연결 에러: {e}")
 
 if __name__ == "__main__":
     market_data = get_market_data()
-    news_data = get_real_news_links()
-
-    post = generate_blog_post(market_data, news_data)
+    post = generate_blog_post(market_data)
     save_and_notify(post)
